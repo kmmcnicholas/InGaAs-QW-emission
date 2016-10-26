@@ -1,4 +1,6 @@
-import numpy as np
+#TODO a lot
+
+import numpy as nps
 import matplotlib
 import matplotlib.pyplot as plt
 import math
@@ -47,6 +49,7 @@ av_GaAs = -1.16 #eV
 c11_GaAs = 1221 #GPa
 c12_GaAs = 566 #GPa
 c44_GaAs = 600 #GPa
+b_GaAs = -2.0 # eV
 
 '''InAs'''
 #Gamma point energy gap values!
@@ -59,6 +62,7 @@ av_InAs = -1.00 #eV
 c11_InAs = 832.9 #GPa
 c12_InAs = 452.6 #GPa
 c44_InAs = 395.9 #GPa
+b_InAs = -1.8 #eV
 
 #*---*---*---*---*---*---*---*---*---*---*#
 #Ternary bowing parameters (Vergaftman)
@@ -81,10 +85,9 @@ luttinger32_bowing = 0.481 #m_e
 
 #_________________________________________________________________________#
 #Performs linear interpolation between point a (0) and b (1) at point 0<=x<=1 (Vagard's Law)
-def linear_interpolation(Property_A, Property_B, x):
+def linear_interpolation(InAs_property, GaAs_property, Ga_mole_fraction):
     #Make sure to pass values in the correct order!!
-    #For In(1-x)Ga(x)As, property A should be In property
-    Value = (1-x)*Property_A + (x)*Property_B
+    Value = (1-Ga_mole_fraction)*InAs_property + (Ga_mole_fraction)*GaAs_property
     return Value
 #_________________________________________________________________________#
 
@@ -107,38 +110,83 @@ def convert_energy_to_wavelength(bandgap_array):
 
 #_________________________________________________________________________#
 #calculates alloy lattice constants, default temperature is 300 K
-def calculate_alloy_lattice_constant(Ga_mole_fraction_array, temperature=300):
-    alloy_lattice_constants = np.zeros_like(Ga_mole_fraction_array)
+def calculate_alloy_lattice_constant(Ga_mole_fraction_array, Temperature=300):
+    Alloy_lattice_constants = np.zeros_like(Ga_mole_fraction_array)
     #Lattice parameter values from Vergaftman
-    ao_InAs = 6.0583 + math.expm1(2.75E-5) * (temperature - 300)
-    ao_GaAs = 5.65325 + math.expm1(3.88e-5) * (temperature -300)
+    ao_InAs = 6.0583 + math.expm1(2.75E-5) * (Temperature - 300)
+    ao_GaAs = 5.65325 + math.expm1(3.88e-5) * (Temperature -300)
     for n in (0, alloy_lattice_constants.size):
-        alloy_lattice_constants[n] = linear_interpolation(ao_InAs, ao_GaAs, Ga_mole_fraction_array[n])
+        Alloy_lattice_constants[n] = linear_interpolation(ao_InAs, ao_GaAs, Ga_mole_fraction_array[n])
 
-    return alloy_lattice_constants
+    return Alloy_lattice_constants
 #_________________________________________________________________________#
 
 #_________________________________________________________________________#
-#calculates alloy lattice constants, default temperature is 300 K
-def calculate_alloy_strain(InGaAs_lattice_constant_array, temperature=300):
-    alloy_lattice_constants = np.zeros_like(InGaAs_lattice_constant_array)
+#calculates alloy in-plane strain at a given temperature
+def calculate_alloy_inplane_strain(Ga_mole_fraction_array, Temperature=300):
+    #First calculate lattice constants of alloys
+    Alloy_lattice_constants = calculate_alloy_lattice_constant(Ga_mole_fraction_array, Temperature)
+
+    #Second calculate in-plane strain
+    Alloy_strain = np.zeros_like(Alloy_lattice_constants)
     #GaAs substrate assumed Lattice parameter values from Vergaftman
-    ao_GaAs = 5.65325 + math.expm1(3.88e-5) * (temperature -300)
-    for n in (0, alloy_lattice_constants.size):
-        alloy_lattice_constants[n] = linear_interpolation(ao_InAs, ao_GaAs, Ga_mole_fraction_array[n])
+    ao_GaAs = 5.65325 + math.expm1(3.88e-5) * (Temperature -300)
 
-    return alloy_lattice_constants
+    for n in (0, Alloy_strain.size):
+        Alloy_strain[n] = (ao_GaAs - Alloy_lattice_constants[n]) / Alloy_lattice_constants[n]
+
+    return Alloy_strain
+#_________________________________________________________________________#
+
+#_________________________________________________________________________#
+#calculates alloy out-of-plane strain at a given temperature
+def calculate_alloy_outplane_strain(Ga_mole_fraction_array, Temperature=300):
+    #First, calculate the inplane strain for the alloys (necessary for out of plane strain)
+    Alloy_inplane_strain = calculate_alloy_inplane_strain(Ga_mole_fraction_array, Temperature)
+
+    #Second, calculate out of plane strain
+    Alloy_outplane_strain = np.zeros_like(Alloy_inplane_strain)
+
+    for n in (0, Alloy_outplane_strain):
+        #Calculate interpolated alloy C11 and C12 parameters
+        Alloy_c11 = linear_interpolation(c11_InAs, c12_GaAs, Ga_mole_fraction_array[n])
+        Alloy_c12 = linear_interpolation(c12_InAs, c12_GaAs, Ga_mole_fraction_array[n])
+
+        #Calculate out of plan strain using C11 and C12 values
+        Alloy_outplane_strain[n] = -2*(Alloy_c12/Alloy_c11)*Alloy_inplane_strain[n]
+
+    return Alloy_outplane_strain
+#_________________________________________________________________________#
+
+#_________________________________________________________________________#
+#calculates the del Ec value for strained band shifts (delta Eg = del Ec + P + Q)
+def calculate_alloy_del_Ec(Ga_mole_fraction_array,Temperature=300):
+    #del Ec = ac*(Exx + Eyy + Ezz) = ac*(2*E|| + Ezz)
+
+#_________________________________________________________________________#
+
+#_________________________________________________________________________#
+#calculates the P value for strained band shifts (delta Eg = del Ec + P + Q)
+def calculate_alloy_P(Ga_mole_fraction_array,Temperature=300):
+    #P = -av*(Exx + Eyy + Ezz) = -av*(2*E|| + Ezz)
+#_________________________________________________________________________#
+
+#_________________________________________________________________________#
+#calculates the Q value for strained band shifts (delta Eg = del Ec + P + Q)
+def calculate_alloy_Q(Ga_mole_fraction_array,Temperature=300):
+    #Q = (-b/2)*(Exx + Eyy - 2*Ezz) = (-b/2)*(2*E|| + 2*Ezz)
+
 #_________________________________________________________________________#
 
 #_________________________________________________________________________#
 #calculates the band gap over a range of alloy compositions at a user defined temperature (defaults to 300 K)
-def calculate_alloy_band_gap(Ga_mole_fraction_array, temperature=300):
+def calculate_alloy_band_gap(Ga_mole_fraction_array, Temperature=300):
     #Create numpy array for data
     Band_gap_values = np.zeros_like(Ga_mole_fraction_array,dtype=np.float32)
 
     #Calculate binary band gaps at T=temperature
-    GaAs_Eg = calculate_temp_dependent_bandgap(Eg_GaAs, Varshni_alpha_GaAs, Varshni_beta_GaAs, temperature)
-    InAs_Eg = calculate_temp_dependent_bandgap(Eg_InAs, Varshni_alpha_InAs, Varshni_beta_InAs, temperature)
+    GaAs_Eg = calculate_temp_dependent_bandgap(Eg_GaAs, Varshni_alpha_GaAs, Varshni_beta_GaAs, Temperature)
+    InAs_Eg = calculate_temp_dependent_bandgap(Eg_InAs, Varshni_alpha_InAs, Varshni_beta_InAs, Temperature)
 
     for n in range (0, (Band_gap_values.size)):
         Band_gap_values[n] = bowing_calculation(InAs_Eg, GaAs_Eg, Ga_mole_fraction_array[n], Eg_Gamma_bowing)
@@ -186,11 +234,11 @@ def main():
     #Array for mole Ga fraction for calculations
     Ga_mole_fraction = np.linspace(0,1,num=1001)
     # temperature of crystal during measurement in Kelvin
-    Temperature = 300 
+    Measurment_temperature = 300
 
     '''plot In(1-x)Ga(x)As band parameters:'''
     #Calculate unstained band gap values:
-    Unstrained_band_gap_energy_eV = calculate_alloy_band_gap(Ga_mole_fraction, Temperature)
+    Unstrained_band_gap_energy_eV = calculate_alloy_band_gap(Ga_mole_fraction, Measurment_temperature)
     Unstrained_band_gap_energy_nm = convert_energy_to_wavelength(Unstrained_band_gap_energy_eV)
 
     #Calculate unstrained valence band offsets (eV):
@@ -228,4 +276,6 @@ def main():
     Unstrained_band_structure_legend = plt.legend(handles=[UVBE, UCBE], loc=2)
     plt.show()
 
+#!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!#
+# Start program
 main()

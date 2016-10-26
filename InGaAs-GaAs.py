@@ -41,6 +41,7 @@ Eg_GaAs = 1.519 #eV (0 K)
 Varshni_alpha_GaAs = 0.0005405 #meV/K
 Varshni_beta_GaAs = 204 #K
 VBO_GaAs = -0.80 #eV
+ao_GaAs
 
 '''InAs'''
 #Gamma point energy gap values!
@@ -48,6 +49,7 @@ Eg_InAs = 0.417 #eV
 Varshni_alpha_InAs = 0.000276 #meV/K
 Varshni_beta_InAs = 93 #K
 VBO_InAs = -0.59 #eV
+ao_InAs
 
 #*---*---*---*---*---*---*---*---*---*---*#
 #Ternary bowing parameters (Vergaftman)
@@ -97,8 +99,12 @@ def convert_energy_to_wavelength(bandgap_array):
 #_________________________________________________________________________#
 #calculates alloy lattice constants
 def calculate_alloy_lattice_constant(Ga_mole_fraction_array, temperature=300):
-#TODO - fill in function parameters and return values
-    return 0
+    alloy_lattice_constants = np.zeros_like(Ga_mole_fraction_array)
+
+    for n in (0, alloy_lattice_constants.size):
+        alloy_lattice_constants[n] = linear_interpolation(ao_InAs, ao_GaAs, Ga_mole_fraction_array[n])
+
+    return alloy_lattice_constants
 #_________________________________________________________________________#
 
 #_________________________________________________________________________#
@@ -171,10 +177,5 @@ def main():
     ax2.set_yticks(major_ticks)
 
     plt.show()
-'''
-    x = np.linspace(0, 3*np.pi, 500)
-    plt.plot(x, np.sin(x**2))
-    plt.title('A simple chirp')
-    plt.show()
-'''
+
 main()

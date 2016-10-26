@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
+import math
 
 #!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!#
 #Important equations:
@@ -41,7 +42,11 @@ Eg_GaAs = 1.519 #eV (0 K)
 Varshni_alpha_GaAs = 0.0005405 #meV/K
 Varshni_beta_GaAs = 204 #K
 VBO_GaAs = -0.80 #eV
-ao_GaAs
+ac_GaAs = -7.17 #eV
+av_GaAs = -1.16 #eV
+c11_GaAs = 1221 #GPa
+c12_GaAs = 566 #GPa
+c44_GaAs = 600 #GPa
 
 '''InAs'''
 #Gamma point energy gap values!
@@ -49,7 +54,11 @@ Eg_InAs = 0.417 #eV
 Varshni_alpha_InAs = 0.000276 #meV/K
 Varshni_beta_InAs = 93 #K
 VBO_InAs = -0.59 #eV
-ao_InAs
+ac_InAs = -5.08 #eV
+av_InAs = -1.00 #eV
+c11_InAs = 832.9 #GPa
+c12_InAs = 452.6 #GPa
+c44_InAs = 395.9 #GPa
 
 #*---*---*---*---*---*---*---*---*---*---*#
 #Ternary bowing parameters (Vergaftman)
@@ -97,10 +106,24 @@ def convert_energy_to_wavelength(bandgap_array):
 #_________________________________________________________________________#
 
 #_________________________________________________________________________#
-#calculates alloy lattice constants
+#calculates alloy lattice constants, default temperature is 300 K
 def calculate_alloy_lattice_constant(Ga_mole_fraction_array, temperature=300):
     alloy_lattice_constants = np.zeros_like(Ga_mole_fraction_array)
+    #Lattice parameter values from Vergaftman
+    ao_InAs = 6.0583 + math.expm1(2.75E-5) * (temperature - 300)
+    ao_GaAs = 5.65325 + math.expm1(3.88e-5) * (temperature -300)
+    for n in (0, alloy_lattice_constants.size):
+        alloy_lattice_constants[n] = linear_interpolation(ao_InAs, ao_GaAs, Ga_mole_fraction_array[n])
 
+    return alloy_lattice_constants
+#_________________________________________________________________________#
+
+#_________________________________________________________________________#
+#calculates alloy lattice constants, default temperature is 300 K
+def calculate_alloy_strain(InGaAs_lattice_constant_array, temperature=300):
+    alloy_lattice_constants = np.zeros_like(InGaAs_lattice_constant_array)
+    #GaAs substrate assumed Lattice parameter values from Vergaftman
+    ao_GaAs = 5.65325 + math.expm1(3.88e-5) * (temperature -300)
     for n in (0, alloy_lattice_constants.size):
         alloy_lattice_constants[n] = linear_interpolation(ao_InAs, ao_GaAs, Ga_mole_fraction_array[n])
 
@@ -131,12 +154,19 @@ def calculate_temp_dependent_bandgap(Bandgap_0K, alpha, beta, temperature=300):
     return Bandgap
 #_________________________________________________________________________#
 
-def calculate_unstrained_valence_band_offset(Ga_mole_fraction_array):
+def calculate_valence_band_offset(Ga_mole_fraction_array):
+    '''Note: Since there are almost no reports of temperature variations that
+    exceed the experimental uncertainties, in all cases we will take the
+    valence band offsets to be independent of T - Vergaftman pp 5854
+
+    -VBO values from Vergaftman are referenced in InSb valence band
+    '''
+
     #Create numpy array for data
     Valence_band_offset_values = np.zeros_like(Ga_mole_fraction_array,dtype=np.float32)
 
     for n in range (0, (Valence_band_offset_values.size)):
-        Valence_band_offset_values[n] = bowing_calculation(InAs_VBO, GaAs_VBO, Ga_mole_fraction_array[n], VBO_bowing)
+        Valence_band_offset_values[n] = bowing_calculation(VBO_InAs, VBO_GaAs, Ga_mole_fraction_array[n], VBO_bowing)
 
     return Valence_band_offset_values
 #_________________________________________________________________________#
@@ -152,30 +182,50 @@ def calculate_confined_level(params):
 # Define main funtion
 
 def main():
-    #plot InGaAs band parameters:
-
-    #Array for molefraction
+    '''Define constants for calculations'''
+    #Array for mole Ga fraction for calculations
     Ga_mole_fraction = np.linspace(0,1,num=1001)
+    # temperature of crystal during measurement in Kelvin
+    Temperature = 300 
 
-    #Calculate and plot band gap values
-    Eg = calculate_alloy_band_gap(Ga_mole_fraction)
-    Wavelength = convert_energy_to_wavelength(Eg)
+    '''plot In(1-x)Ga(x)As band parameters:'''
+    #Calculate unstained band gap values:
+    Unstrained_band_gap_energy_eV = calculate_alloy_band_gap(Ga_mole_fraction, Temperature)
+    Unstrained_band_gap_energy_nm = convert_energy_to_wavelength(Unstrained_band_gap_energy_eV)
 
+    #Calculate unstrained valence band offsets (eV):
+    Unstrained_valence_Band_offset = calculate_valence_band_offset(Ga_mole_fraction)
+    #Calculate conduction band values (eV):
+        #Note: Valence band offset + band gap = conduction band
+    Unstrained_conduction_band_offset = Unstrained_valence_Band_offset + Unstrained_band_gap_energy_eV
+
+
+    #fig1 generates plot of unstrained alloy band gaps in eV
     fig1 = plt.figure(1)
     ax1 = fig1.add_subplot(1,1,1)
     ax1.set_xlabel('Ga fraction')
     ax1.set_ylabel('Bandgap (eV)')
-    plt.plot(Ga_mole_fraction, Eg)
+    plt.plot(Ga_mole_fraction, Unstrained_band_gap_energy_eV)
 
+    #fig2 generates a plot of unstrained alloy band gaps in nm
     fig2 = plt.figure(2)
     ax2 = fig2.add_subplot(1,1,1)
     ax2.set_xlabel('Ga fraction')
     ax2.set_ylabel('Bandgap (nm)')
-    plt.plot(Ga_mole_fraction, Wavelength)
+    plt.plot(Ga_mole_fraction, Unstrained_band_gap_energy_nm)
     plt.axis([0,1,850,3500])
     major_ticks = np.arange(850, 3500, 300)
     ax2.set_yticks(major_ticks)
 
+    #fig3 generates a plot of the unstrained In(1-x)Ga(x)As gamma valley band gap
+    #Note: Energy values are referenced to InSb valence band minimum (at 0 eV here)
+    fig3 = plt.figure(3)
+    ax3 = fig3.add_subplot(1,1,1)
+    ax3.set_ylabel('Unstrained In(1-x)Ga(x)As band gap (eV)')
+    ax3.set_xlabel('Ga fraction')
+    UVBE, = plt.plot(Ga_mole_fraction, Unstrained_valence_Band_offset, label="In(1-x)Ga(x)As VB edge")
+    UCBE, = plt.plot(Ga_mole_fraction, Unstrained_conduction_band_offset, label="In(1-x)Ga(x)As CB edge")
+    Unstrained_band_structure_legend = plt.legend(handles=[UVBE, UCBE], loc=2)
     plt.show()
 
 main()

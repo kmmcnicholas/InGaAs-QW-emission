@@ -19,7 +19,7 @@ Where:
 '''
 #*---*---*---*---*---*---*---*---*---*---*#
 '''
-Equation for temperature dependence (Varshni equation):
+Equation for band gap temperature dependence (Varshni equation):
     Eg(T) = Eg(T=0) - (alpha*T^2)/(T+beta)
 Where:
     Eg(T) is the band gap at the desired temperature
@@ -93,11 +93,9 @@ def linear_interpolation(InAs_property, GaAs_property, Ga_mole_fraction):
 
 #_________________________________________________________________________#
 #Performs calculation of property with a bowing parameter
-def bowing_calculation(Property_A, Property_B, x, Bowing_param):
+def bowing_calculation(InAs_property, GaAs_proptery, Ga_mole_fraction, Bowing_param):
     #Make sure to pass values in the correct order!!
-    #P(A{1-x}B{x}) =  (1-x)*P(A) + (x)*P(B) - x*(1-x)*C
-    #For In(1-x)Ga(x)As, property A should be In property
-    Value = (1-x)*Property_A + x*Property_B - x*(1-x)*Bowing_param
+    Value = (1-Ga_mole_fraction)*InAs_property + (Ga_mole_fraction)*GaAs_proptery - Ga_mole_fraction*(1-Ga_mole_fraction)*Bowing_param
     return Value
 #_________________________________________________________________________#
 
@@ -147,7 +145,7 @@ def calculate_alloy_outplane_strain(Ga_mole_fraction_array, Temperature=300):
     #Second, calculate out of plane strain
     Alloy_outplane_strain = np.zeros_like(Alloy_inplane_strain)
 
-    for n in (0, Alloy_outplane_strain):
+    for n in (0, Alloy_outplane_strain.size):
         #Calculate interpolated alloy C11 and C12 parameters
         Alloy_c11 = linear_interpolation(c11_InAs, c12_GaAs, Ga_mole_fraction_array[n])
         Alloy_c12 = linear_interpolation(c12_InAs, c12_GaAs, Ga_mole_fraction_array[n])
@@ -162,20 +160,65 @@ def calculate_alloy_outplane_strain(Ga_mole_fraction_array, Temperature=300):
 #calculates the del Ec value for strained band shifts (delta Eg = del Ec + P + Q)
 def calculate_alloy_del_Ec(Ga_mole_fraction_array,Temperature=300):
     #del Ec = ac*(Exx + Eyy + Ezz) = ac*(2*E|| + Ezz)
+    #note: ac has a bowing parameter (Vergaftman)!
 
+    #first, calculate strains for each alloy composition
+    Alloy_inplane_strain = calculate_alloy_inplane_strain(Ga_mole_fraction_array, Temperature)
+    Alloy_outplane_strain = calculate_alloy_outplane_strain(Ga_mole_fraction_array, Temperature)
+
+    #Second, calculate del Ec for each alloy composition
+    Alloy_del_Ec = np.zeros_like(Ga_mole_fraction_array)
+    for n in (0, Alloy_del_Ec.size):
+        #Calculate ac using bowing parameter
+        Alloy_ac = bowing_calculation(ac_InAs, ac_GaAs, Ga_mole_fraction_array[n], a_c_bowing)
+        #calculate del Ec
+        Alloy_del_Ec[n] = Alloy_ac*(2*Alloy_inplane_strain[n] + Alloy_outplane_strain[n])
+
+    return Alloy_del_Ec
 #_________________________________________________________________________#
 
 #_________________________________________________________________________#
 #calculates the P value for strained band shifts (delta Eg = del Ec + P + Q)
 def calculate_alloy_P(Ga_mole_fraction_array,Temperature=300):
-    #P = -av*(Exx + Eyy + Ezz) = -av*(2*E|| + Ezz)
+    #P = av*(Exx + Eyy + Ezz) = -av*(2*E|| + Ezz)
+    # Note that our sign convention for av is different from many other works found in the literature. (Vergaftman)
+    # - The negative usually found in front of av (Chuang/UT Optoelectronics) is included in the constants defined above
+    #note: ac has NO bowing parameter (Vergaftman)!
+
+    #first, calculate strains for each alloy composition
+    Alloy_inplane_strain = calculate_alloy_inplane_strain(Ga_mole_fraction_array, Temperature)
+    Alloy_outplane_strain = calculate_alloy_outplane_strain(Ga_mole_fraction_array, Temperature)
+
+    #Second, calculate P for each alloy composition
+    Alloy_P = np.zeros_like(Ga_mole_fraction_array)
+    for n in (0, Alloy_P.size):
+        #Calculate av using linear interpolation
+        Alloy_av = linear_interpolation(av_InAs, av_GaAs, Ga_mole_fraction_array[n])
+        #Calculate P
+        Alloy_P[n] = Alloy_av*(2*Alloy_inplane_strain[n] + Alloy_outplane_strain[n])
+
+    return Alloy_P
 #_________________________________________________________________________#
 
 #_________________________________________________________________________#
 #calculates the Q value for strained band shifts (delta Eg = del Ec + P + Q)
 def calculate_alloy_Q(Ga_mole_fraction_array,Temperature=300):
     #Q = (-b/2)*(Exx + Eyy - 2*Ezz) = (-b/2)*(2*E|| + 2*Ezz)
+    #note: Q has NO bowing parameter (Vergaftman)!
 
+    #first, calculate strains for each alloy composition
+    Alloy_inplane_strain = calculate_alloy_inplane_strain(Ga_mole_fraction_array, Temperature)
+    Alloy_outplane_strain = calculate_alloy_outplane_strain(Ga_mole_fraction_array, Temperature)
+
+    #Second, calculate P for each alloy composition
+    Alloy_Q = np.zeros_like(Ga_mole_fraction_array)
+    for n in (0, Alloy_Q.size):
+        #Calculate av using linear interpolation
+        Alloy_b = linear_interpolation(b_InAs, b_GaAs, Ga_mole_fraction_array[n])
+        #Calculate P
+        Alloy_Q[n] = (-Alloy_b/2)*(2*Alloy_inplane_strain[n] - 2*Alloy_outplane_strain[n])
+
+    return Alloy_P
 #_________________________________________________________________________#
 
 #_________________________________________________________________________#
@@ -197,8 +240,8 @@ def calculate_alloy_band_gap(Ga_mole_fraction_array, Temperature=300):
 
 #_________________________________________________________________________#
 #calculates the band gap at a user defined temperature (defaults to 300 K)
-def calculate_temp_dependent_bandgap(Bandgap_0K, alpha, beta, temperature=300):
-    Bandgap = Bandgap_0K - (alpha*(temperature**2))/(temperature + beta)
+def calculate_temp_dependent_bandgap(Bandgap_0K, alpha, beta, Temperature=300):
+    Bandgap = Bandgap_0K - (alpha*(Temperature**2))/(Temperature + beta)
     return Bandgap
 #_________________________________________________________________________#
 

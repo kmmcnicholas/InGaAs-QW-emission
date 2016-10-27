@@ -1,6 +1,6 @@
 #TODO a lot
 
-import numpy as nps
+import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
 import math
@@ -339,18 +339,42 @@ def main():
     # temperature of crystal during measurement in Kelvin
     Measurment_temperature = 300
 
-    '''plot In(1-x)Ga(x)As band parameters:'''
+    '''Calculate In(1-x)Ga(x)As band parameters:'''
     #Calculate unstained band gap values:
     Unstrained_band_gap_energy_eV = calculate_alloy_band_gap(Ga_mole_fraction, Measurment_temperature)
     Unstrained_band_gap_energy_nm = convert_energy_to_wavelength(Unstrained_band_gap_energy_eV)
 
-    #Calculate unstrained valence band offsets (eV):
+    #Calculate unstrained valence band energy offset (eV):
+        #Note: Energy values are referenced to InSb valence band minimum (at 0 eV here)
     Unstrained_valence_Band_offset = calculate_valence_band_offset(Ga_mole_fraction)
-    #Calculate conduction band values (eV):
+    #Calculate conduction band offsets (eV):
         #Note: Valence band offset + band gap = conduction band
+        #Note: Energy values are referenced to InSb valence band minimum (at 0 eV here)
     Unstrained_conduction_band_offset = Unstrained_valence_Band_offset + Unstrained_band_gap_energy_eV
 
+    #calculate strain shifts in conduction band
+    # Note: Eg(strained) = Eg(unstrained) + del Ec + P + Q
+    #   -> strained conduction band = unstrained conduction band edge + del Ec
+    #Calculate strained conduction band edge (referenced to InSb valence band)
+    Del_Ec = calculate_alloy_del_Ec(Ga_mole_fraction, Measurment_temperature)
+    Strained_conduction_band_offset = Unstrained_conduction_band_offset + Del_Ec
 
+    #Calculat strain shifts to valence band edges
+    #   Note: Eg(strained) = Eg(unstrained) + del Ec + P + Q
+    #   Note: Strain shifts heavy hole and light hole bands in different directions
+    #       -> Compressive strain shifts heavy hold band up -> quantum well confined states should be calculated for this band
+    #       -> strained heavy hole band = unstrained valence band edge - P - Q
+    #           -> Valnce band energy values are negative when referenced to InSb valence band
+    P = calculate_alloy_P(Ga_mole_fraction, Measurment_temperature)
+    Q = calculate_alloy_Q(Ga_mole_fraction, Measurment_temperature)
+    Strained_heavy_hole_band_offset = Unstrained_valence_Band_offset - P - Q
+    Strained_light_hold_band_offset = Unstrained_valence_Band_offset - p + Q
+
+
+
+    #Calculate strained valence band offsets
+
+    '''plot In(1-x)Ga(x)As band parameters:'''
     #fig1 generates plot of unstrained alloy band gaps in eV
     fig1 = plt.figure(1)
     ax1 = fig1.add_subplot(1,1,1)
@@ -378,6 +402,17 @@ def main():
     UCBE, = plt.plot(Ga_mole_fraction, Unstrained_conduction_band_offset, label="In(1-x)Ga(x)As CB edge")
     Unstrained_band_structure_legend = plt.legend(handles=[UVBE, UCBE], loc=2)
     plt.show()
+
+    #fig4 generates a plot of the unstrained In(1-x)Ga(x)As gamma valley band gap as well as the strained gamma valley band gap
+    #Note: Energy values are referenced to InSb valence band minimum (at 0 eV here)
+    fig3 = plt.figure(3)
+    ax3 = fig3.add_subplot(1,1,1)
+    ax3.set_ylabel('Unstrained In(1-x)Ga(x)As band gap (eV)')
+    ax3.set_xlabel('Ga fraction')
+    UVBE, = plt.plot(Ga_mole_fraction, Unstrained_valence_Band_offset, label="In(1-x)Ga(x)As VB edge")
+    UCBE, = plt.plot(Ga_mole_fraction, Unstrained_conduction_band_offset, label="In(1-x)Ga(x)As CB edge")
+    Unstrained_band_structure_legend = plt.legend(handles=[UVBE, UCBE], loc=2)
+    #plt.show()
 
 #!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!#
 # Start program

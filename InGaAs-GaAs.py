@@ -36,6 +36,7 @@ Where:
 #h = 4.135667662*(10**−15) #eV*S
 #c = 2.99792458*(10**17) #nm/S
 hc = 1239.842 #(ev*nm)
+me = math.expm1(6.62607004e-34) #m^2*kg/sec
 
 #Binary Parameters (from Vergaftman):
 '''GaAs'''
@@ -50,6 +51,11 @@ c11_GaAs = 1221 #GPa
 c12_GaAs = 566 #GPa
 c44_GaAs = 600 #GPa
 b_GaAs = -2.0 # eV
+meff_e_gamma_GaAs = 0.067
+gamma_1_GaAs = 6.98 #dimensionless
+gamma_2_GaAs = 2.06 #dimensionless
+gamma_3_GaAs = 2.93 #dimensionless
+
 
 '''InAs'''
 #Gamma point energy gap values!
@@ -63,6 +69,10 @@ c11_InAs = 832.9 #GPa
 c12_InAs = 452.6 #GPa
 c44_InAs = 395.9 #GPa
 b_InAs = -1.8 #eV
+meff_e_gamma_InAs = 0.026 #m_e
+gamma_1_InAs = 20.0 #dimensionless
+gamma_2_InAs = 8.5 #dimensionless
+gamma_3_InAs = 9.2 #dimensionless
 
 #*---*---*---*---*---*---*---*---*---*---*#
 #Ternary bowing parameters (Vergaftman)
@@ -74,6 +84,7 @@ Eg_X_bowing = 1.4 #eV
 Delta_SO_bowing = 0.15 #eV
 Ep_bowing = -1.48 #eV
 a_c_bowing = 2.61 #eV
+meff_e_gamma_bowing = 0.0091 #m_e
 meff_hh_100_bowing = -0.145 #m_e
 meff_lh_100_bowing = 0.0202 #m_e
 F_bowing = 1.77 #dimensionless
@@ -222,6 +233,56 @@ def calculate_alloy_Q(Ga_mole_fraction_array,Temperature=300):
 #_________________________________________________________________________#
 
 #_________________________________________________________________________#
+#calculates the electron effective mass for InGaAs alloy compositions
+def calculate_alloy_me(Ga_mole_fraction_array,Temperature=300):
+    #note: me has a bowing parameter (Vergaftman)!
+    #Calculate electron effective mass using bowing parameter
+    Alloy_me = np.zeros_like(Ga_mole_fraction_array)
+    for n in(0, Alloy_me.size):
+        Alloy_me[n] = bowing_calculation(meff_e_gamma_InAs, meff_e_gamma_GaAs, Ga_mole_fraction_array[n], meff_e_gamma_bowing)
+
+    return Alloy_me
+#_________________________________________________________________________#
+
+#_________________________________________________________________________#
+#calculates the heavy hole effective mass for InGaAs alloy compositions
+def calculate_alloy_mhh(Ga_mole_fraction_array,Temperature=300):
+    #(mo/mhh = (gamma1 - 2*gamma2)) - (Vergaftman)
+    #note: mhh has NO bowing parameter (Vergaftman)!
+
+    #First, calculate InAs and GaAs heavy hole effective mass
+    mhh_InAs = 1/(gamma_1_InAs - 2*gamma_2_InAs)
+    mhh_GaAs = 1/(gamma_1_GaAs - 2*gamma_2_GaAs)
+
+    #Second, calculate alloy heavy hole effective mass
+    Alloy_mhh = np.zeros_like(Ga_mole_fraction_array)
+
+    for n in (0, Alloy_mhh.size):
+        Alloy_mhh[n] = linear_interpolation(mhh_InAs, mhh_GaAs, Ga_mole_fraction_array[n])
+
+    return Alloy_mhh
+#_________________________________________________________________________#
+
+#_________________________________________________________________________#
+#calculates the light hole effective mass for InGaAs alloy compositions
+def calculate_alloy_mlh(Ga_mole_fraction_array,Temperature=300):
+    #(mo/mlh = (gamma1 + 2*gamma2)) - Vergaftman
+    #note: mlh has NO bowing parameter (Vergaftman)!
+
+    #First, calculate InAs and GaAs light hole effective mass
+    mlh_InAs = 1/(gamma_1_InAs + 2*gamma_2_InAs)
+    mlh_GaAs = 1/(gamma_1_GaAs + 2*gamma_2_GaAs)
+
+    #Second, calculate alloy light hole effective mass
+    Alloy_mlh = np.zeros_like(Ga_mole_fraction_array)
+
+    for n in (0, Alloy_mlh.size):
+        Alloy_mlh[n] = linear_interpolation(mlh_InAs, mlh_GaAs, Ga_mole_fraction_array[n])
+
+    return Alloy_mlh
+#_________________________________________________________________________#
+
+#_________________________________________________________________________#
 #calculates the band gap over a range of alloy compositions at a user defined temperature (defaults to 300 K)
 def calculate_alloy_band_gap(Ga_mole_fraction_array, Temperature=300):
     #Create numpy array for data
@@ -234,7 +295,6 @@ def calculate_alloy_band_gap(Ga_mole_fraction_array, Temperature=300):
     for n in range (0, (Band_gap_values.size)):
         Band_gap_values[n] = bowing_calculation(InAs_Eg, GaAs_Eg, Ga_mole_fraction_array[n], Eg_Gamma_bowing)
 
-    print (Band_gap_values)
     return Band_gap_values
 #_________________________________________________________________________#
 

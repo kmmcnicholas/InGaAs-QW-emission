@@ -124,7 +124,7 @@ def calculate_alloy_lattice_constant(Ga_mole_fraction_array, Temperature=300):
     #Lattice parameter values from Vergaftman
     ao_InAs = 6.0583 + math.expm1(2.75E-5) * (Temperature - 300)
     ao_GaAs = 5.65325 + math.expm1(3.88e-5) * (Temperature -300)
-    for n in (0, alloy_lattice_constants.size):
+    for n in range (0, Alloy_lattice_constants.size):
         Alloy_lattice_constants[n] = linear_interpolation(ao_InAs, ao_GaAs, Ga_mole_fraction_array[n])
 
     return Alloy_lattice_constants
@@ -141,7 +141,7 @@ def calculate_alloy_inplane_strain(Ga_mole_fraction_array, Temperature=300):
     #GaAs substrate assumed Lattice parameter values from Vergaftman
     ao_GaAs = 5.65325 + math.expm1(3.88e-5) * (Temperature -300)
 
-    for n in (0, Alloy_strain.size):
+    for n in range (0, Alloy_strain.size):
         Alloy_strain[n] = (ao_GaAs - Alloy_lattice_constants[n]) / Alloy_lattice_constants[n]
 
     return Alloy_strain
@@ -156,7 +156,7 @@ def calculate_alloy_outplane_strain(Ga_mole_fraction_array, Temperature=300):
     #Second, calculate out of plane strain
     Alloy_outplane_strain = np.zeros_like(Alloy_inplane_strain)
 
-    for n in (0, Alloy_outplane_strain.size):
+    for n in range (0, Alloy_outplane_strain.size):
         #Calculate interpolated alloy C11 and C12 parameters
         Alloy_c11 = linear_interpolation(c11_InAs, c12_GaAs, Ga_mole_fraction_array[n])
         Alloy_c12 = linear_interpolation(c12_InAs, c12_GaAs, Ga_mole_fraction_array[n])
@@ -179,7 +179,7 @@ def calculate_alloy_del_Ec(Ga_mole_fraction_array,Temperature=300):
 
     #Second, calculate del Ec for each alloy composition
     Alloy_del_Ec = np.zeros_like(Ga_mole_fraction_array)
-    for n in (0, Alloy_del_Ec.size):
+    for n in range (0, Alloy_del_Ec.size):
         #Calculate ac using bowing parameter
         Alloy_ac = bowing_calculation(ac_InAs, ac_GaAs, Ga_mole_fraction_array[n], a_c_bowing)
         #calculate del Ec
@@ -202,7 +202,7 @@ def calculate_alloy_P(Ga_mole_fraction_array,Temperature=300):
 
     #Second, calculate P for each alloy composition
     Alloy_P = np.zeros_like(Ga_mole_fraction_array)
-    for n in (0, Alloy_P.size):
+    for n in range (0, Alloy_P.size):
         #Calculate av using linear interpolation
         Alloy_av = linear_interpolation(av_InAs, av_GaAs, Ga_mole_fraction_array[n])
         #Calculate P
@@ -223,13 +223,13 @@ def calculate_alloy_Q(Ga_mole_fraction_array,Temperature=300):
 
     #Second, calculate P for each alloy composition
     Alloy_Q = np.zeros_like(Ga_mole_fraction_array)
-    for n in (0, Alloy_Q.size):
+    for n in range (0, Alloy_Q.size):
         #Calculate av using linear interpolation
         Alloy_b = linear_interpolation(b_InAs, b_GaAs, Ga_mole_fraction_array[n])
         #Calculate P
         Alloy_Q[n] = (-Alloy_b/2)*(2*Alloy_inplane_strain[n] - 2*Alloy_outplane_strain[n])
 
-    return Alloy_P
+    return Alloy_Q
 #_________________________________________________________________________#
 
 #_________________________________________________________________________#
@@ -238,7 +238,7 @@ def calculate_alloy_me(Ga_mole_fraction_array,Temperature=300):
     #note: me has a bowing parameter (Vergaftman)!
     #Calculate electron effective mass using bowing parameter
     Alloy_me = np.zeros_like(Ga_mole_fraction_array)
-    for n in(0, Alloy_me.size):
+    for n in range (0, Alloy_me.size):
         Alloy_me[n] = bowing_calculation(meff_e_gamma_InAs, meff_e_gamma_GaAs, Ga_mole_fraction_array[n], meff_e_gamma_bowing)
 
     return Alloy_me
@@ -257,7 +257,7 @@ def calculate_alloy_mhh(Ga_mole_fraction_array,Temperature=300):
     #Second, calculate alloy heavy hole effective mass
     Alloy_mhh = np.zeros_like(Ga_mole_fraction_array)
 
-    for n in (0, Alloy_mhh.size):
+    for n in range (0, Alloy_mhh.size):
         Alloy_mhh[n] = linear_interpolation(mhh_InAs, mhh_GaAs, Ga_mole_fraction_array[n])
 
     return Alloy_mhh
@@ -276,7 +276,7 @@ def calculate_alloy_mlh(Ga_mole_fraction_array,Temperature=300):
     #Second, calculate alloy light hole effective mass
     Alloy_mlh = np.zeros_like(Ga_mole_fraction_array)
 
-    for n in (0, Alloy_mlh.size):
+    for n in range (0, Alloy_mlh.size):
         Alloy_mlh[n] = linear_interpolation(mlh_InAs, mlh_GaAs, Ga_mole_fraction_array[n])
 
     return Alloy_mlh
@@ -314,7 +314,7 @@ def calculate_valence_band_offset(Ga_mole_fraction_array):
     '''
 
     #Create numpy array for data
-    Valence_band_offset_values = np.zeros_like(Ga_mole_fraction_array,dtype=np.float32)
+    Valence_band_offset_values = np.zeros_like(Ga_mole_fraction_array)
 
     for n in range (0, (Valence_band_offset_values.size)):
         Valence_band_offset_values[n] = bowing_calculation(VBO_InAs, VBO_GaAs, Ga_mole_fraction_array[n], VBO_bowing)
@@ -323,8 +323,15 @@ def calculate_valence_band_offset(Ga_mole_fraction_array):
 #_________________________________________________________________________#
 
 #_________________________________________________________________________#
+#calculates confined level using the inifinte square well approximation
+def calculate_infinite_confined_level(params):
+#TODO - fill in function parameters and return values
+    return 0
+#_________________________________________________________________________#
+
+#_________________________________________________________________________#
 #calculates confined level
-def calculate_confined_level(params):
+def calculate_infinite_confined_level(params):
 #TODO - fill in function parameters and return values
     return 0
 #_________________________________________________________________________#
@@ -368,11 +375,7 @@ def main():
     P = calculate_alloy_P(Ga_mole_fraction, Measurment_temperature)
     Q = calculate_alloy_Q(Ga_mole_fraction, Measurment_temperature)
     Strained_heavy_hole_band_offset = Unstrained_valence_Band_offset - P - Q
-    Strained_light_hold_band_offset = Unstrained_valence_Band_offset - p + Q
-
-
-
-    #Calculate strained valence band offsets
+    Strained_light_hole_band_offset = Unstrained_valence_Band_offset - P + Q
 
     '''plot In(1-x)Ga(x)As band parameters:'''
     #fig1 generates plot of unstrained alloy band gaps in eV
@@ -401,18 +404,20 @@ def main():
     UVBE, = plt.plot(Ga_mole_fraction, Unstrained_valence_Band_offset, label="In(1-x)Ga(x)As VB edge")
     UCBE, = plt.plot(Ga_mole_fraction, Unstrained_conduction_band_offset, label="In(1-x)Ga(x)As CB edge")
     Unstrained_band_structure_legend = plt.legend(handles=[UVBE, UCBE], loc=2)
-    plt.show()
 
     #fig4 generates a plot of the unstrained In(1-x)Ga(x)As gamma valley band gap as well as the strained gamma valley band gap
     #Note: Energy values are referenced to InSb valence band minimum (at 0 eV here)
-    fig3 = plt.figure(3)
-    ax3 = fig3.add_subplot(1,1,1)
-    ax3.set_ylabel('Unstrained In(1-x)Ga(x)As band gap (eV)')
-    ax3.set_xlabel('Ga fraction')
-    UVBE, = plt.plot(Ga_mole_fraction, Unstrained_valence_Band_offset, label="In(1-x)Ga(x)As VB edge")
-    UCBE, = plt.plot(Ga_mole_fraction, Unstrained_conduction_band_offset, label="In(1-x)Ga(x)As CB edge")
-    Unstrained_band_structure_legend = plt.legend(handles=[UVBE, UCBE], loc=2)
-    #plt.show()
+    fig4 = plt.figure(4)
+    ax4 = fig4.add_subplot(1,1,1)
+    ax4.set_ylabel('Unstrained In(1-x)Ga(x)As band gap (eV)')
+    ax4.set_xlabel('Ga fraction')
+    UVBE, = plt.plot(Ga_mole_fraction, Unstrained_valence_Band_offset, label="Unstrained In(1-x)Ga(x)As VB", color='b', linestyle='--')
+    UCBE, = plt.plot(Ga_mole_fraction, Unstrained_conduction_band_offset, label="Unstrained In(1-x)Ga(x)As CB", color='r', linestyle='--')
+    SHHBE, = plt.plot(Ga_mole_fraction,Strained_heavy_hole_band_offset, label="Strained In(1-x)Ga(x)As HHB", color='b')
+    SLHBE, = plt.plot(Ga_mole_fraction,Strained_light_hole_band_offset, label="Strained In(1-x)Ga(x)As LHB", color='g')
+    SCBE, = plt.plot(Ga_mole_fraction,Strained_conduction_band_offset, label="Strained In(1-x)Ga(x)As CB", color='r')
+    #Unstrained_band_structure_legend = plt.legend(handles=[UVBE, UCBE, SHHBE, SLHBE, SCBE], loc=2)
+    plt.show()
 
 #!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!#
 # Start program

@@ -36,7 +36,9 @@ Where:
 #h = 4.135667662*(10**−15) #eV*S
 #c = 2.99792458*(10**17) #nm/S
 hc = 1239.842 #(ev*nm)
-me = math.expm1(6.62607004e-34) #m^2*kg/sec
+me = 9.10938356e-31 #kg
+hbar = 1.054571800e-34 #J*S
+JtoeV = 6.242e18 #eV/J
 
 #Binary Parameters (from Vergaftman):
 '''GaAs'''
@@ -112,9 +114,16 @@ def bowing_calculation(InAs_property, GaAs_proptery, Ga_mole_fraction, Bowing_pa
 
 #_________________________________________________________________________#
 #converts energy valuves in eV to wavelength in nm
-def convert_energy_to_wavelength(bandgap_array):
-    wavelength = hc / bandgap_array
-    return wavelength
+def convert_energy_to_wavelength(Bandgap_array):
+    Wavelength = hc / Bandgap_array
+    return Wavelength
+#_________________________________________________________________________#
+
+#_________________________________________________________________________#
+#converts energy valuves in eV to wavelength in nm
+def convert_joules_to_eV(Joule_energy_array):
+    eV_energy_array = JtoeV * Joule_energy_array
+    return eV_energy_array
 #_________________________________________________________________________#
 
 #_________________________________________________________________________#
@@ -122,8 +131,8 @@ def convert_energy_to_wavelength(bandgap_array):
 def calculate_alloy_lattice_constant(Ga_mole_fraction_array, Temperature=300):
     Alloy_lattice_constants = np.zeros_like(Ga_mole_fraction_array)
     #Lattice parameter values from Vergaftman
-    ao_InAs = 6.0583 + math.expm1(2.75E-5) * (Temperature - 300)
-    ao_GaAs = 5.65325 + math.expm1(3.88e-5) * (Temperature -300)
+    ao_InAs = 6.0583 + 2.75E-5 * (Temperature - 300)
+    ao_GaAs = 5.65325 + 3.88e-5 * (Temperature -300)
     for n in range (0, Alloy_lattice_constants.size):
         Alloy_lattice_constants[n] = linear_interpolation(ao_InAs, ao_GaAs, Ga_mole_fraction_array[n])
 
@@ -139,7 +148,7 @@ def calculate_alloy_inplane_strain(Ga_mole_fraction_array, Temperature=300):
     #Second calculate in-plane strain
     Alloy_strain = np.zeros_like(Alloy_lattice_constants)
     #GaAs substrate assumed Lattice parameter values from Vergaftman
-    ao_GaAs = 5.65325 + math.expm1(3.88e-5) * (Temperature -300)
+    ao_GaAs = 5.65325 + 3.88e-5 * (Temperature -300)
 
     for n in range (0, Alloy_strain.size):
         Alloy_strain[n] = (ao_GaAs - Alloy_lattice_constants[n]) / Alloy_lattice_constants[n]
@@ -324,16 +333,43 @@ def calculate_valence_band_offset(Ga_mole_fraction_array):
 
 #_________________________________________________________________________#
 #calculates confined level using the inifinte square well approximation
-def calculate_infinite_confined_level(params):
+def calculate_infinite_confined_levels(Ga_mole_fraction_array, Well_width, Temperature = 300):
+    #En = (hbar^2/2*m)*(n*pi/Lz)^2
+    # n = 1 for first confined level
+    #Calculate effective masses
+    #electrons
+    Electron_effective_masses = calculate_alloy_me(Ga_mole_fraction_array, Temperature)
+    Heavy_hole_effective_masses = calculate_alloy_mhh(Ga_mole_fraction_array, Temperature)
+
+    # Calculate electron confinement energies - These results are in Joules!!
+    Electron_infinite_confinement_energies = np.zeros_like(Ga_mole_fraction_array)
+    for n in range (0, (Electron_infinite_confinement_energies.size)):
+        Electron_infinite_confinement_energies[n] = (hbar**2/(2*me*Electron_effective_masses[n]))*((math.pi**2)/(Well_width*1e-10)**2)
+
+    # Calculae heavy hold confinement Electron_infinite_confinement_energies
+    Heavy_hole_infinite_confinement_energies = np.zeros_like(Ga_mole_fraction_array)
+    for n in range (0, (Heavy_hole_infinite_confinement_energies.size)):
+        Heavy_hole_infinite_confinement_energies[n] = (hbar**2/(2*me*Heavy_hole_effective_masses[n]))*((math.pi**2)/(Well_width*1e-10)**2)
+
+    # Convert to eV
+    Electron_infinite_confinement_energies = convert_joules_to_eV(Electron_infinite_confinement_energies)
+    Heavy_hole_infinite_confinement_energies = convert_joules_to_eV(Heavy_hole_infinite_confinement_energies)
+
+    return (Electron_infinite_confinement_energies, Heavy_hole_infinite_confinement_energies)
+#_________________________________________________________________________#
+
+#_________________________________________________________________________#
+#numerically calculates the finite well confined level assuming a GaAs barrier
+def calculate_finite_confined_levels(Ga_mole_fraction_array, Well_width, Temperature = 300):
 #TODO - fill in function parameters and return values
     return 0
 #_________________________________________________________________________#
 
 #_________________________________________________________________________#
-#calculates confined level
-def calculate_infinite_confined_level(params):
-#TODO - fill in function parameters and return values
-    return 0
+
+def pretty_print_numpy_array(Array):
+    for n in range (0, (Array.size)):
+        print(Array[n])
 #_________________________________________________________________________#
 
 #!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!#
@@ -342,9 +378,10 @@ def calculate_infinite_confined_level(params):
 def main():
     '''Define constants for calculations'''
     #Array for mole Ga fraction for calculations
-    Ga_mole_fraction = np.linspace(0,1,num=1001)
+    Ga_mole_fraction = np.linspace(0,1,num=101)
     # temperature of crystal during measurement in Kelvin
     Measurment_temperature = 300
+    Quantum_well_width = 100 #Angstroms!!
 
     '''Calculate In(1-x)Ga(x)As band parameters:'''
     #Calculate unstained band gap values:
@@ -376,6 +413,14 @@ def main():
     Q = calculate_alloy_Q(Ga_mole_fraction, Measurment_temperature)
     Strained_heavy_hole_band_offset = Unstrained_valence_Band_offset - P - Q
     Strained_light_hole_band_offset = Unstrained_valence_Band_offset - P + Q
+
+    #Calculate effective shifts in band edge from quantum confinement effects
+    #Effective energy gap = Eg_strained + Ec_confinement + Ev_confinement
+    Infinite_confined_levels = calculate_infinite_confined_levels(Ga_mole_fraction, Quantum_well_width, Measurment_temperature)
+    Conduction_band_infinite_confined_levels = Infinite_confined_levels[0]
+    Valence_band_infinite_confined_levels = Infinite_confined_levels[1]
+    Confined_conduction_band_offsets = Strained_conduction_band_offset + Conduction_band_infinite_confined_levels
+    Confined_valence_band_offsets = Strained_heavy_hole_band_offset + Valence_band_infinite_confined_levels
 
     '''plot In(1-x)Ga(x)As band parameters:'''
     #fig1 generates plot of unstrained alloy band gaps in eV
@@ -417,6 +462,20 @@ def main():
     SLHBE, = plt.plot(Ga_mole_fraction,Strained_light_hole_band_offset, label="Strained In(1-x)Ga(x)As LHB", color='g')
     SCBE, = plt.plot(Ga_mole_fraction,Strained_conduction_band_offset, label="Strained In(1-x)Ga(x)As CB", color='r')
     #Unstrained_band_structure_legend = plt.legend(handles=[UVBE, UCBE, SHHBE, SLHBE, SCBE], loc=2)
+
+    #fig4 generates a plot of the unstrained In(1-x)Ga(x)As gamma valley band gap as well as the strained gamma valley band gap
+    #Note: Energy values are referenced to InSb valence band minimum (at 0 eV here)
+    fig5 = plt.figure(5)
+    ax5 = fig5.add_subplot(1,1,1)
+    ax5.set_ylabel('Unstrained In(1-x)Ga(x)As effective band gap (eV)')
+    ax5.set_xlabel('Ga fraction')
+    UVBE, = plt.plot(Ga_mole_fraction, Unstrained_valence_Band_offset, label="Unstrained In(1-x)Ga(x)As VB", color='b', linestyle='--')
+    UCBE, = plt.plot(Ga_mole_fraction, Unstrained_conduction_band_offset, label="Unstrained In(1-x)Ga(x)As CB", color='r', linestyle='--')
+    SHHBE, = plt.plot(Ga_mole_fraction,Strained_heavy_hole_band_offset, label="Strained In(1-x)Ga(x)As HHB", color='b')
+    SLHBE, = plt.plot(Ga_mole_fraction,Strained_light_hole_band_offset, label="Strained In(1-x)Ga(x)As LHB", color='g')
+    SCBE, = plt.plot(Ga_mole_fraction,Strained_conduction_band_offset, label="Strained In(1-x)Ga(x)As CB", color='r')
+    QCCBE, = plt.plot(Ga_mole_fraction, Confined_conduction_band_offsets, label="Strained In(1-x)Ga(x)As CB + QC energy", marker='*', fillstyle='none', color='r')
+    QCVBE, = plt.plot(Ga_mole_fraction, Confined_valence_band_offsets, label="Strained In(1-x)Ga(x)As VB + QC energy", marker='*', fillstyle='none', color='b')
     plt.show()
 
 #!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!---!!!#

@@ -1,4 +1,4 @@
-#TODO a lot
+#TODO - Make todo list
 
 import numpy as np
 import matplotlib
@@ -370,7 +370,7 @@ def calculate_finite_confined_levels(Ga_mole_fraction_array, Well_width, Tempera
     Barrier_valence_band_offset = calculate_valence_band_offset(Barrier_mole_fraction)
     Barrier_conduction_band_offset = Barrier_valence_band_offset + Barrier_Eg
     Barrier_me = calculate_alloy_me(Barrier_mole_fraction)
-    Barrier_mehh = calculate_alloy_mhh(Barrier_mole_fraction)
+    Barrier_mhh = calculate_alloy_mhh(Barrier_mole_fraction)
 
     #calculate band parameters for strained alloy
     Alloy_unstrained_band_gap_energy_eV = calculate_alloy_band_gap(Ga_mole_fraction_array, Temperature)
@@ -411,20 +411,17 @@ def calculate_finite_confined_levels(Ga_mole_fraction_array, Well_width, Tempera
             Calculation_constants = ()
             #First calculate alloy parameters for fsolve()
 
-            #Barrier electron effective mass
-            Calculation_constants[0] = Barrier_me
-
             #Quantum well electron effective mass
             Alloy_me = Alloy_electron_effective_masses[n]
-            Calculation_constants[1] = Alloy_me
 
             #Quantum well energy barrier
             Energy_barrier = Barrier_conduction_band_offset - Alloy_strained_conduction_band_offset[n]
-            Calculation_constants[2] = Energy_barrier
 
             #Infinite well ground state energy
-            Infinite_E1 = Alloy_conduction_band_finite_levelsonduction_band_infinite_confined_levels[n]
-            Calculation_constants[3] = Infinite_E1
+            Infinite_E1 = Alloy_conduction_band_infinite_confined_levels[n]
+
+            #Populate touple for calculation
+            Calculation_constants = (Barrier_me, Alloy_me, Energy_barrier, Infinite_E1)
 
             #Solve transcendental equation
             Finite_E0 = Infinite_E1 # This is the initial guess for fsolve
@@ -441,20 +438,16 @@ def calculate_finite_confined_levels(Ga_mole_fraction_array, Well_width, Tempera
             Calculation_constants = ()
             #First calculate alloy parameters for fsolve()
 
-            #Barrier electron effective mass
-            Calculation_constants[0] = Barrier_me
-
             #Quantum well electron effective mass
-            Alloy_me = Alloy_heavy_hole_effective_masses[n]
-            Calculation_constants[1] = Alloy_mhh
+            Alloy_mhh = Alloy_heavy_hole_effective_masses[n]
 
             #Quantum well energy barrier
             Energy_barrier = math.fabs(Barrier_valence_band_offset - Alloy_strained_heavy_hole_band_offset[n])
-            Calculation_constants[2] = Energy_barrier
 
             #Infinite well ground state energy
             Infinite_E1 = Alloy_valence_band_infinite_confined_levels[n]
-            Calculation_constants[3] = Infinite_E1
+
+            Calculation_constants = (Barrier_mhh, Alloy_mhh, Energy_barrier, Infinite_E1)
 
             #Solve transcendental equation
             Finite_E0 = Infinite_E1 # This is the initial guess for fsolve
@@ -482,8 +475,8 @@ def finite_well_analytical_function(Energy, *Calculation_constants):
 
     m_w = Calculation_constants[0]
     m_b = Calculation_constants[1]
-    Vb = Calculation_cosntants[2]
-    E1inf = Calculation_cosntants[3]
+    Vb = Calculation_constants[2]
+    E1inf = Calculation_constants[3]
 
     return ( math.sqrt((m_w/m_b)*(Vb - Energy)) - math.sqrt(Energy)*math.tan((np.pi/2)*math.sqrt(Energy/E1inf)) )
 #_________________________________________________________________________#
@@ -501,7 +494,7 @@ def pretty_print_numpy_array(Array):
 def main():
     '''Define constants for calculations'''
     #Array for mole Ga fraction for calculations
-    Ga_mole_fraction = np.linspace(0,1,num=101)
+    Ga_mole_fraction = np.linspace(0,1,num=1001)
     # temperature of crystal during measurement in Kelvin
     Measurment_temperature = 300
     Quantum_well_width = 100 #Angstroms!!
@@ -542,9 +535,22 @@ def main():
     Infinite_confined_levels = calculate_infinite_confined_levels(Ga_mole_fraction, Quantum_well_width, Measurment_temperature)
     Conduction_band_infinite_confined_levels = Infinite_confined_levels[0]
     Valence_band_infinite_confined_levels = Infinite_confined_levels[1]
-    Confined_conduction_band_offsets = Strained_conduction_band_offset + Conduction_band_infinite_confined_levels
+    Infinite_confined_conduction_band_offsets = Strained_conduction_band_offset + Conduction_band_infinite_confined_levels
     #Valence band edge values are negative with respect to InSb valence band - hence negative confinement energy
-    Confined_valence_band_offsets = Strained_heavy_hole_band_offset - Valence_band_infinite_confined_levels
+    Infinite_confined_valence_band_offsets = Strained_heavy_hole_band_offset - Valence_band_infinite_confined_levels
+
+    #calculate finite quantum well confined levels:
+    Finite_confined_levels = calculate_finite_confined_levels(Ga_mole_fraction, Quantum_well_width, Measurment_temperature)
+    Conduction_band_finite_confined_levels = Finite_confined_levels[0]
+    Valence_band_finite_confined_levels = Finite_confined_levels[1]
+    Finite_confined_conduction_band_offsets = Strained_conduction_band_offset + Conduction_band_finite_confined_levels
+    #Valence band edge values are negative with respect to InSb valence band - hence negative confinement energy
+    Finite_confined_valence_band_offsets = Strained_heavy_hole_band_offset - Valence_band_finite_confined_levels
+    Effective_bandgap = Finite_confined_conduction_band_offsets - Finite_confined_valence_band_offsets
+    Effective_bandgap_nm = convert_energy_to_wavelength(Effective_bandgap)
+    for n in range(0, Effective_bandgap_nm.size):
+        print('Array index: ' + repr(n) + '  Effective Band Gap: ' + repr(Effective_bandgap_nm[n]))
+
 
     '''plot In(1-x)Ga(x)As band parameters:'''
     #fig1 generates plot of unstrained alloy band gaps in eV
